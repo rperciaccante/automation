@@ -74,6 +74,12 @@
 #      - Created paged display to show host status, alarm state, solenoid
 #        state, and conditions
 #      - Cleaned up switch behavior and display of conditions
+#    1/1/2020 - 0.9.1
+#      - Cleaned up substitutions
+#      - Added more details to component sections to make it easier to 
+#        read and to learn.
+#      - Prepared for splitting off "secure" config baseline to be used in future 
+#        projects
 #---------------------------------------------------------
 
 #---------------------------------------------------------
