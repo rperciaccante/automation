@@ -1,0 +1,553 @@
+#------------------water_monitor--------------------------
+# H2OhNo! RV Water Monitor and Controller
+#   ESPHome based water montor and controller
+# 
+# Purpose: 
+#   To identify the presence of water, temperature, and 
+#   humudity, and to disable water flow when water is detected,
+#   or if humidity is too high and display that fact on a
+#   small LCD screen.  This design also allows for multiple water
+#   sensors to be attached to the same PINS, as any of them touching
+#   water will complete the circuit and trigger the alarm.
+#
+# Components:
+#   1x NodeMCU v3 controller
+#   1x NC/NO relay
+#      Relay       NodeMCU
+#      Power  ->   VU
+#      Ground ->   Grnd
+#      D1     ->   D5
+#   1x SSD1206 LCD display
+#      Display     NodeMCU
+#      VCC    ->   3.3v
+#      GND    ->   Ground
+#      SCL    ->   D1
+#      SDA    ->   D2
+#   1x water sensor (acts like reed switch)
+#      Sensor      NodeMCU
+#      Power  ->   D6
+#      Ground ->   Ground
+#   1x momentary-on switch (alarm reset)
+#      Switch      NodeMCU
+#      Power  ->   D7
+#      Ground ->   Ground
+#   1x BME280 Temp/Humidity sensor
+#      Sensor      NodeMCU
+#      VCC    ->   3.3v
+#      GND    ->   Ground
+#      SCL    ->   D1
+#      SDA    ->   D2
+#   1x 12v NC Water Solenoid
+#      Purchased from Amazon - https://www.amazon.com/dp/B018WRJYUE/
+#   1x 1N4007 diode (snubber diode)
+#      Needed to prevent damage to the relay
+#      See this video for more details: https://www.youtube.com/watch?v=ioSYlxHlYdI
+#
+# Behavior:
+#    When the water sensor detects water, it will automatically set the alarm
+#      state as "WATER", and will turn off the relay, killing power to the
+#      solenoid, and shutting off the water supply.
+#    In order to clear the alarm condition, it is necessary to press the reset
+#      button one time to clear the alarm state, and another to re-open the 
+#      relay to provide power to the solenoid.  The reason for this is to allow
+#      for the connection of an additional relay that could control an audible 
+#      alarm.  It is not currently implemented as of 12/32/2019
+#    When not in an alarm state, the reset button will toggle the relay, opening
+#      and closing the relay.
+#    To assist in troubleshooting, the onboard LED will blink when pressed to help
+#      ensure that the user knows what is going on, as well as being able to ensure
+#      that the switch is working properly.
+#
+# References:
+#    BME280 config: https://esphome.io/cookbook/bme280_environment.html
+#    Formatting SSD1206 - https://esphome.io/cookbook/display_time_temp_oled.html
+#
+# Changelog:
+#    12/26/2019:
+#      - Upgraded Node MCU as control base
+#      - Annotated config with references to components
+#    12/30/2019:
+#      - Improved reset switch behavior with conditional actions
+#      - Began clarifying the messages sent to the screen
+#      - Need to complete scripts and logic with global alarm flag
+#    12/31/2019 - 0.9.0:
+#      - Created paged display to show host status, alarm state, solenoid
+#        state, and conditions
+#      - Cleaned up switch behavior and display of conditions
+#---------------------------------------------------------
+
+#---------------------------------------------------------
+# https://esphome.io/guides/configuration-types.html#substitutions
+#---------------------------------------------------------
+# Change these values to match the configurations for your 
+# particular configuration and chipset, and pinout.
+#
+# The substitution names are "sub_"[component]_[variable] (i.e.
+#   sub_esphome_board) to improve readability and make it easier
+#   to extend or use as a template.  General text substitutions, 
+#   such as used in names, begin with "sub_text_" and are at the
+#   beginning of the substitutions block.
+#
+# NOTE: Passwords should be moved to your secrets.yaml file
+#   and should not be left in cleartext in your config!
+#   This is done here for demonstration purposes only
+#---------------------------------------------------------
+substitutions:
+  # General Text Substitutions
+  sub_text_devicename: "Water Monitor"
+  sub_text_myversion: "0.9.1"
+  
+  # Fundamental Substitutions
+  sub_esphome_name: watermonitor
+  sub_esphome_board: nodemcuv2
+  sub_wifi_ssid: !secret esp_wifi_ssid
+  sub_wifi_password: !secret esp_wifi_pass
+  sub_wifi_manual_ip_static_ip: "10.2.10.212"
+  sub_wifi_manual_ip_subnet: "255.255.255.0"
+  sub_wifi_manual_ip_gateway: "10.2.10.1"
+  sub_wifi_manual_ip_dns1: "10.2.100.10"
+  sub_wifi_fast_connect: "true"   # True or false
+  sub_wifi_domain: ".home.local"
+  sub_wifi_ap_password: !secret esp_ap_psk
+  sub_web_server_port: "80"
+  sub_web_server_auth_user: !secret esp_http_user
+  sub_web_server_auth_password: !secret esp_http_pass
+  sub_api_password: !secret esp_api_pass
+  sub_ota_password: !secret esp_ota_pass
+  
+  # Project specific substitutions
+  sub_i2c_sda: "4"
+  sub_i2c_scl: "5"
+  sub_switch_water_relay_gpio: "D5"
+  sub_switch_led_gpio: "D4"
+  sub_binary_sensor_water_sensor_gpio: "D6"
+  sub_binary_sensor_reset_switch_gpio: "D7"
+  sub_sensor_bme280_humidity_alarm_threshold: "50"
+
+#---------------------------------------------------------
+# https://esphome.io/components/esphome.html
+#---------------------------------------------------------
+
+esphome:
+  name: ${sub_esphome_name}
+  platform: ESP8266
+  board: ${sub_esphome_board}
+  on_boot:                          # https://esphome.io/components/esphome.html#on-boot
+    priority: -100
+    then:
+      script.execute: on_boot
+
+#---------------------------------------------------------
+# https://esphome.io/components/wifi.html
+#---------------------------------------------------------
+wifi:
+  ssid: ${sub_wifi_ssid}
+  password: ${sub_wifi_password}
+  # ------------- Static IP address assignment ------------- #
+  # To use DHCP comment out thge manual_ip block and contents
+  manual_ip:
+   static_ip: ${sub_wifi_manual_ip_static_ip}
+   subnet: ${sub_wifi_manual_ip_subnet}
+   gateway: ${sub_wifi_manual_ip_gateway}
+   dns1: ${sub_wifi_manual_ip_dns1}
+  fast_connect: ${sub_wifi_fast_connect}
+  domain: ${sub_wifi_domain}
+  ap:                                   # Enable fallback hotspot
+    ssid: ${sub_text_devicename} Fallback Hotspot
+    password: ${sub_wifi_ap_password}
+
+#---------------------------------------------------------
+#                 Web Server Component
+#     https://esphome.io/components/web_server.html
+#---------------------------------------------------------
+# The web server component uses a lot of resources!  Unless you need
+#   it, disable it here.  API access is still available for integration
+#   with Home Assistant or other supported controller.
+#--------------------------------------------------------- 
+#web_server: 
+#  port: ${sub_web_server_port}
+#  auth:
+#    username: ${sub_web_server_auth_user}
+#    password: ${sub_web_server_auth_password}
+
+#---------------------------------------------------------
+#                 Captive Portal Component
+#    https://esphome.io/components/captive_portal.html
+#---------------------------------------------------------
+# The captive portal component in ESPHome is a fallback mechanism for 
+#   when connecting to the configured WiFi fails.
+#
+# After 1 minute of unsuccesful wifi connection attempts, the ESP 
+#   will start a WiFi hotspot (with the credentials from your configuration).
+#---------------------------------------------------------
+captive_portal:
+
+#---------------------------------------------------------
+#                     API Component
+#         https://esphome.io/components/api.html
+#---------------------------------------------------------
+# The ESPHome native API is used to communicate with clients directly,
+#   with a highly-optimized network protocol. Currently, only the ESPHome
+#   tool and Home Assistant use this native API.
+#---------------------------------------------------------
+api:
+  password: ${sub_api_password}
+ 
+#---------------------------------------------------------
+#                   Logger Component
+#         https://esphome.io/components/logger.html
+#---------------------------------------------------------
+# The logger component automatically logs all log messages through the
+#   serial port and through MQTT topics. By default, all logs with a 
+#   severity higher than DEBUG will be shown. Decreasing the log level can
+#   help with the performance of the application and memory size.
+#---------------------------------------------------------
+logger:
+
+#---------------------------------------------------------
+# https://esphome.io/components/ota.html
+#---------------------------------------------------------
+ota:
+  safe_mode: True
+  password: ${sub_ota_password}
+
+#---------------------------------------------------------
+# https://esphome.io/guides/automations.html#script-execute-action
+#---------------------------------------------------------
+script:
+  - id: on_boot
+    then:
+      - logger.log: "System bootup underway..."
+      - logger.log: "- Ensure water relay is opened automatically..."
+      - script.execute: open_solenoid
+      - script.execute: clear_alarm
+      - text_sensor.template.publish:
+          id: my_code_version
+          state: ${sub_text_myversion}
+      -  display.page.show: page1
+
+  - id: clear_alarm
+    then:
+      - logger.log: "Clearing Alarm State"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "CLEAR" 
+  
+  - id: water_alarm
+    then:
+      - logger.log: "!!!  Water Detected !!!"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "WATER" 
+      - script.execute: close_solenoid
+  
+  - id: humidity_alarm
+    then:
+      - logger.log: "!!!  High Humidity Detected !!!"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "HUMIDITY" 
+      - script.execute: close_solenoid
+    
+  - id: open_solenoid
+    then:
+      - switch.turn_on: water_relay
+      - switch.turn_off: led
+      - logger.log: "Relay Opened"
+      - text_sensor.template.publish:
+          id: solenoid_state_text
+          state: "OPEN"
+
+  - id: close_solenoid
+    then:
+      - switch.turn_off: water_relay
+      - switch.turn_on: led
+      - logger.log: "Relay Closed"
+      - text_sensor.template.publish:
+          id: solenoid_state_text
+          state: "CLOSED"
+          
+  - id: blink_led
+    then:
+      - switch.toggle: led
+      - delay: 500ms
+      - switch.toggle: led
+
+#---------------------------------------------------------
+# https://esphome.io/components/text_sensor/index.html
+#---------------------------------------------------------
+text_sensor:
+  - platform: version                    # https://esphome.io/components/text_sensor/version.html
+    name: ${sub_text_devicename} ESPHome Version
+    id: esphome_version
+
+  - platform: wifi_info                  # https://esphome.io/components/text_sensor/wifi_info.html
+    ip_address:
+      name: ${sub_text_devicename} IP Address
+      id: host_ip
+      icon: mdi:fingerprint
+    ssid:
+      name: ${sub_text_devicename} Connected SSID
+      id: host_ssid
+      icon: "mdi:router-wireless"
+      
+  - platform: template                   # https://esphome.io/components/sensor/template.html
+    name: ${sub_text_devicename} Alarm State
+    id: alarm_state
+    icon: "mdi:alert-decagram"
+    
+  - platform: template                   # https://esphome.io/components/sensor/template.html
+    name: Solenoid State
+    id: solenoid_state_text
+    icon: "mdi:water"
+
+  - platform: template                   # https://esphome.io/components/sensor/template.html
+    name: My Code Version
+    id: my_code_version
+    icon: mdi:tag-text-outline
+
+  - platform: template                   # https://www.arduino.cc/en/Reference/WiFi
+    id: host_mac
+    name: "MAC Address"
+    lambda: 'return {WiFi.macAddress().c_str()};'
+    icon: mdi:fingerprint
+    update_interval: 1d
+       
+#  - platform: template                 # https://www.arduino.cc/en/Reference/WiFiSubnetMask
+#    id: host_subnet
+#    name: "Subnet Mask"
+#    lambda: 'return {WiFi.subnetMask().c_str()};'
+#    icon: mdi:fingerprint
+#    update_interval: 1d
+#    
+#  - platform: template                 # https://www.arduino.cc/en/Reference/WiFiSubnetMask
+#    id: host_gateway
+#    name: "Gateway IP"
+#    lambda: 'return {WiFi.gatewayIP()};'
+#    icon: mdi:fingerprint
+#    update_interval: 1d
+ 
+#---------------------------------------------------------
+# https://esphome.io/components/i2c.html
+#---------------------------------------------------------
+i2c:
+  sda: ${sub_i2c_sda}
+  scl: ${sub_i2c_scl}
+
+#---------------------------------------------------------
+# https://esphome.io/components/display/index.html
+#---------------------------------------------------------
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    # rotation: 90°
+    reset_pin: 1
+    address: 0x3C
+    id: ssd_display
+    pages:                                  # https://esphome.io/components/display/index.html#display-pages
+      - id: page1
+        lambda: |-
+          it.printf(64, 0, id(arial_14), TextAlign::TOP_CENTER, "Alarm Status");
+          it.printf(64, 42, id(BERNHC_36), TextAlign::CENTER, "%s", id(alarm_state).state.c_str());
+      
+      - id: page2
+        lambda: |-
+          it.printf(64, 0, id(arial_14), TextAlign::TOP_CENTER,  "Valve Status");
+          it.printf(64, 42, id(BERNHC_36), TextAlign::CENTER, "%s", id(solenoid_state_text).state.c_str());
+
+      - id: page3
+        lambda: |-
+          it.printf(64, 0, id(arial_14), TextAlign::TOP_CENTER,  "Conditions");
+          it.printf(0, 23, id(arial_12), "   Temp:         Humidity");
+          it.printf(64, 46, id(BERNHC_30), TextAlign::CENTER, "%.0f°   %.0f%%", id(bme280_temperature).state, id(bme280_humidity).state);
+      
+      - id: page4
+        lambda: |-
+          it.printf(64, 0, id(arial_14), TextAlign::TOP_CENTER, "Network Info");
+          it.printf(0, 22, id(arial_12), "IP:           %s", id(host_ip).state.c_str());
+          it.printf(0, 34, id(arial_12), "SSID:      %s", id(host_ssid).state.c_str());
+          it.printf(0, 46, id(arial_12), "MAC:"); 
+          it.printf(0, 58, id(arial_12), "%s", id(host_mac).state.c_str());
+      
+      - id: page5
+        lambda: |-
+          it.printf(64, 0, id(arial_14), TextAlign::TOP_CENTER, "Host Info");
+          it.printf(0, 22, id(arial_12), "Uptime:  %.1f (hrs)", (id(host_uptime).state / 60) / 60);
+          it.printf(0, 34, id(arial_12), "Version:   %s", id(my_code_version).state.c_str());
+          it.printf(0, 46, id(arial_12), "ESPHome:");
+          it.printf(0, 58, id(arial_12), "%s", id(esphome_version).state.c_str());
+
+
+#---------------------------------------------------------
+# Rotate through the available screens every 10 seconds.  If there is 
+#   an active alarm, then do not rotate (alarm activation will set the
+#   active display as the alarm status screen)
+#---------------------------------------------------------
+interval:
+  - interval: 10s
+    then:
+      if:
+        condition:                 
+          text_sensor.state:         
+            id: alarm_state
+            state: 'CLEAR'
+        then:
+          - display.page.show_next: ssd_display
+          - component.update: ssd_display
+
+#---------------------------------------------------------
+# https://esphome.io/components/display/index.html#drawing-static-text
+#---------------------------------------------------------
+font:
+  - file: 'arial.ttf'
+    id: arial_14
+    size: 14
+    
+  - file: 'arial.ttf'
+    id: arial_12
+    size: 12
+  
+  - file: 'BERNHC.ttf'
+    id: BERNHC_36
+    size: 36
+  
+  - file: 'BERNHC.ttf'
+    id: BERNHC_30
+    size: 30
+
+#---------------------------------------------------------
+# https://esphome.io/components/binary_sensor/index.html
+#---------------------------------------------------------
+binary_sensor:
+  - platform: gpio                     # https://esphome.io/components/binary_sensor/gpio.html
+    name: Water Detector
+    id: water_detector
+    device_class: moisture
+    pin:
+      number: ${sub_binary_sensor_water_sensor_gpio}
+      inverted: yes
+      mode: INPUT_PULLUP
+    filters:
+    - delayed_on: 20ms
+    on_press:
+      then:
+        - script.execute: water_alarm
+        - display.page.show: page1
+      
+  - platform: gpio                    # https://esphome.io/components/binary_sensor/gpio.html
+    name: Reset Switch
+    id: reset_switch
+    device_class: connectivity
+    pin:
+      number: ${sub_binary_sensor_reset_switch_gpio}
+      inverted: yes
+      mode: INPUT_PULLUP
+    filters:
+    - delayed_on: 20ms
+    on_press:
+      then:
+        - if:
+            condition: 
+              text_sensor.state:
+                id: alarm_state
+                state: 'CLEAR'
+            then:
+              - if: 
+                  condition:
+                    switch.is_on: water_relay
+                  then:
+                    - script.execute: blink_led
+                    - delay: 500ms
+                    - script.execute: close_solenoid
+                    - display.page.show: page2
+                  else:
+                    - script.execute: blink_led
+                    - delay: 500ms
+                    - script.execute: open_solenoid
+                    - display.page.show: page2
+            else:
+              - script.execute: blink_led
+              - delay: 500ms
+              - script.execute: clear_alarm
+              - display.page.show: page1
+        
+#---------------------------------------------------------
+# https://esphome.io/components/switch/
+#---------------------------------------------------------
+switch:      
+  - platform: restart
+    name: "Restart"
+    
+  - platform: gpio                # https://esphome.io/components/switch/gpio.html
+    pin: ${sub_switch_water_relay_gpio}
+    name: "Water Valve"
+    id: water_relay
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        - script.execute: open_solenoid
+    on_turn_off:
+      then:
+        - script.execute: close_solenoid
+
+    
+  - platform: gpio                 # https://esphome.io/components/switch/gpio.html
+    pin:
+      number: ${sub_switch_led_gpio}
+      inverted: yes
+    name: "LED"
+    id: led
+    restore_mode: ALWAYS_ON
+
+#---------------------------------------------------------
+# https://esphome.io/components/sensor/
+#---------------------------------------------------------
+sensor:
+  - platform: uptime
+    name: "Uptime"
+    id: host_uptime
+    icon: mdi:clock-outline
+    
+  - platform: bme280                        # https://esphome.io/components/sensor/bme280.html
+    temperature:
+      name: "BME280 Temperature"
+      id: bme280_temperature
+      unit_of_measurement: "°F"
+      icon: mdi:thermometer
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;    # Convert C to F
+    pressure:
+      name: "BME280 Pressure"
+      id: bme280_pressure
+    humidity:
+      name: "BME280 Relative Humidity"
+      id: bme280_humidity
+      icon: mdi:water-percent
+      on_value_range:
+      - above: ${sub_sensor_bme280_humidity_alarm_threshold}
+        then:
+          - script.execute: humidity_alarm
+          - display.page.show: page1
+    update_interval: 60s
+    address: 0x76
+
+  - platform: template
+    name: "Altitude"
+    lambda: |-
+      const float STANDARD_SEA_LEVEL_PRESSURE = 1013.25; //in hPa, see note
+      return ((id(bme280_temperature).state + 273.15) / 0.0065) *
+        (powf((STANDARD_SEA_LEVEL_PRESSURE / id(bme280_pressure).state), 0.190234) - 1); // in meter
+    update_interval: 15s
+    
+  - platform: template
+    name: "Absolute Humidity"
+    icon: mdi:water-percent
+    lambda: |-
+      const float mw = 18.01534;    // molar mass of water g/mol
+      const float r = 8.31447215;   // Universal gas constant J/mol/K
+      return (6.112 * powf(2.718281828, (17.67 * id(bme280_temperature).state) /
+        (id(bme280_temperature).state + 243.5)) * id(bme280_humidity).state * mw) /
+        ((273.15 + id(bme280_temperature).state) * r); // in grams/m^3
+    accuracy_decimals: 2
+    update_interval: 15s
