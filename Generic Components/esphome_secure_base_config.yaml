@@ -52,8 +52,6 @@
 #                 Substitution Component
 # https://esphome.io/guides/configuration-types.html#substitutions
 #---------------------------------------------------------
-# Change these values to match the configurations for your 
-# particular configuration and chipset, and pinout.
 #
 # The substitution names are "sub_"[component]_[variable] (i.e.
 #   sub_esphome_board) to improve readability and make it easier
@@ -69,10 +67,14 @@ substitutions:
   # General Text Substitutions
   sub_text_devicename:            "My Example Project"
   
-  # Fundamental Substitutions
+  # Core Substitutions
+  #   Change these values to match the configurations for your 
+  #     particular configuration and chipset, and pinout.
   sub_esphome_name:               my_example_project
   sub_esphome_platform:           ESP8266
   sub_esphome_board:              nodemcuv2
+  
+  # Network and service related substitutions
   sub_wifi_ssid1:                 !secret esp_wifi_ssid
   sub_wifi_password1:             !secret esp_wifi_pass
   sub_wifi_ssid2:                 !secret esp_wifi_ssid
