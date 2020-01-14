@@ -79,6 +79,11 @@ substitutions:
   sub_esphome_name:               my_example_project
   sub_esphome_platform:           ESP8266
   sub_esphome_board:              nodemcuv2
+  # Fast connect is only available when a single SSID is used.  True or False
+  sub_wifi_fast_connect:          "false"              
+  sub_logger_level:               "DEBUG"
+  sub_api_port:                   "6053"
+  sub_ota_port:                   "8266"  # 8266 for ESP8266, 3232 for ESP32
   
   # Network and service related substitutions
   sub_wifi_ssid1:                 !secret esp_wifi_ssid
@@ -88,8 +93,6 @@ substitutions:
   sub_wifi_manual_ip_subnet:      !secret esp_ip_subnet
   sub_wifi_manual_ip_gateway:     !secret esp_ip_gateway
   sub_wifi_manual_ip_dns1:        !secret esp_ip_dns
-  # Fast connect is only available when a single SSID is used.  True or False
-  sub_wifi_fast_connect:          "false"                  
   sub_wifi_domain:                !secret esp_ip_domain
   sub_wifi_ap_password:           !secret esp_ap_psk
   sub_web_server_port:            !secret esp_http_server_port
@@ -186,6 +189,7 @@ captive_portal:
 #-----------------------------------------------------------------------------#
 api:
   password:                       ${sub_api_password}
+  port:                           ${sub_api_port}
  
 #*****************************************************************************#
 #                               Logger Component                              #
@@ -198,6 +202,7 @@ api:
 #-----------------------------------------------------------------------------#
 
 logger:
+  level:                          ${sub_logger_level}
 
 #*****************************************************************************#
 #                               OTA Update Component                          #
@@ -210,6 +215,7 @@ logger:
 ota:
   safe_mode:                      ${sub_wifi_fast_connect}
   password:                       ${sub_ota_password}
+  port:                           ${sub_ota_port}
 
 #*****************************************************************************#
 #                           script.execute Action                             #
