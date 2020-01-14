@@ -3,6 +3,8 @@
 #---------------------------------------------------------
 # https://github.com/rperciaccante/automation/tree/master/Generic%20Components
 #
+#  Comments welcome - rfp@protonmail.com
+#
 # Purpose: 
 #   To provide a safe foundational config that can be used for nearly 
 #       all ESPHome devices as they are built, as well as providing an
