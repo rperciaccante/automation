@@ -103,9 +103,9 @@ substitutions:
 #   where you specify the node name, the platform and board you’re using.     #
 #-----------------------------------------------------------------------------#
 esphome:
-  name:                 ${sub_esphome_name}
-  platform:             ${sub_esphome_platform}
-  board:                ${sub_esphome_board}
+  name:                           ${sub_esphome_name}
+  platform:                       ${sub_esphome_platform}
+  board:                          ${sub_esphome_board}
   
   # After the device is all up and running, run this script to set 
   # options or conditions that are needed.  This is not always necessary
@@ -113,7 +113,7 @@ esphome:
   on_boot:                          
     priority: -100
     then:
-      script.execute:   on_boot
+      script.execute:             on_boot
 
 #*****************************************************************************#
 #                                  WiFi Component                             #
@@ -127,24 +127,24 @@ esphome:
 #-----------------------------------------------------------------------------#
 wifi:
   networks:
-    - ssid:             ${sub_wifi_ssid1}
-      password:         ${sub_wifi_password1}
-    - ssid:             ${sub_wifi_ssid2}
-      password:         ${sub_wifi_password2}
+    - ssid:                       ${sub_wifi_ssid1}
+      password:                   ${sub_wifi_password1}
+    - ssid:                       ${sub_wifi_ssid2}
+      password:                   ${sub_wifi_password2}
    
   # ------------- Static IP address assignment ------------- #
   # To use DHCP comment out the manual_ip block and contents
   manual_ip:
-   static_ip:           ${sub_wifi_manual_ip_static_ip}
-   subnet:              ${sub_wifi_manual_ip_subnet}
-   gateway:             ${sub_wifi_manual_ip_gateway}
-   dns1:                ${sub_wifi_manual_ip_dns1}
+   static_ip:                     ${sub_wifi_manual_ip_static_ip}
+   subnet:                        ${sub_wifi_manual_ip_subnet}
+   gateway:                       ${sub_wifi_manual_ip_gateway}
+   dns1:                          ${sub_wifi_manual_ip_dns1}
   # If you are using only one SSID, enable Fast Connect
-  fast_connect:         ${sub_wifi_fast_connect}
-  domain:               ${sub_wifi_domain}
+  fast_connect:                   ${sub_wifi_fast_connect}
+  domain:                         ${sub_wifi_domain}
   ap:                                   # Enable fallback hotspot
-    ssid:               ${sub_text_devicename} Hotspot
-    password:           ${sub_wifi_ap_password}
+    ssid:                         ${sub_text_devicename} Hotspot
+    password:                     ${sub_wifi_ap_password}
 
 #*****************************************************************************#
 #                            Web Server Component                             #
@@ -156,10 +156,10 @@ wifi:
 #   to problems, especially on the ESP8266.                                   #
 #-----------------------------------------------------------------------------# 
 web_server: 
-  port:                 ${sub_web_server_port}
+  port:                           ${sub_web_server_port}
   auth:
-    username:           ${sub_web_server_auth_user}
-    password:           ${sub_web_server_auth_password}
+    username:                     ${sub_web_server_auth_user}
+    password:                     ${sub_web_server_auth_password}
 
 #*****************************************************************************#
 #                            Captive Portal Component                         #
@@ -181,7 +181,7 @@ captive_portal:
 #   tool and Home Assistant use this native API.                              #
 #-----------------------------------------------------------------------------#
 api:
-  password:             ${sub_api_password}
+  password:                       ${sub_api_password}
  
 #*****************************************************************************#
 #                               Logger Component                              #
@@ -204,8 +204,8 @@ logger:
 #   ESPHome natively supports this through its run and upload helper scripts. #
 #-----------------------------------------------------------------------------#
 ota:
-  safe_mode:            ${sub_wifi_fast_connect}
-  password:             ${sub_ota_password}
+  safe_mode:                      ${sub_wifi_fast_connect}
+  password:                       ${sub_ota_password}
 
 #*****************************************************************************#
 #                           script.execute Action                             #
@@ -220,8 +220,8 @@ ota:
 script:
   - id: on_boot
     then:
-      - logger.log:     "System post-boot setup underway..."
-      - logger.log:     "System post-boot setup complete..."
+      - logger.log:               "System post-boot setup underway..."
+      - logger.log:               "System post-boot setup complete..."
 
 
 #*****************************************************************************#
@@ -235,28 +235,28 @@ script:
 text_sensor:
   # ------------------------- Begin Template Components ----------------------#
     # Include ESPHome version in device attributes
-  - platform:           version                   
-    name:               ${sub_text_devicename} ESPHome Version
-    id:                 ${sub_esphome_name}_esphome_version
+  - platform:                     version                   
+    name:                         ${sub_text_devicename} ESPHome Version
+    id:                           ${sub_esphome_name}_esphome_version
 
     # Include WiFi info in device attributes
-  - platform:           wifi_info
+  - platform:                     wifi_info
     ip_address:
-      name:             ${sub_text_devicename} IP Address
-      id:               ${sub_esphome_name}_host_ip
-      icon:             mdi:fingerprint
+      name:                       ${sub_text_devicename} IP Address
+      id:                         ${sub_esphome_name}_host_ip
+      icon:                       mdi:fingerprint
     ssid:
-      name:             ${sub_text_devicename} Connected SSID
-      id:               ${sub_esphome_name}_host_ssid
-      icon:             "mdi:router-wireless"
+      name:                       ${sub_text_devicename} Connected SSID
+      id:                         ${sub_esphome_name}_host_ssid
+      icon:                       "mdi:router-wireless"
       
     # Use a template sensor to get the MAC address of the wireless device
-  - platform:           template                   
-    id:                 ${sub_esphome_name}_host_mac
-    name:               ${sub_text_devicename} MAC Address
-    lambda:             'return {WiFi.macAddress().c_str()};'
-    icon:               mdi:fingerprint
-    update_interval:    1d
+  - platform:                     template                   
+    id:                           ${sub_esphome_name}_host_mac
+    name:                         ${sub_text_devicename} MAC Address
+    lambda:                       'return {WiFi.macAddress().c_str()};'
+    icon:                         mdi:fingerprint
+    update_interval:              1d
   # ------- End Template Components. Add your content below this line --------#
 
 
@@ -286,20 +286,20 @@ binary_sensor:
   # ------------------------- Begin Template Components ----------------------#
 
     # Include the node state as a device attribute.  
-  - platform:           status                   
-    id:                 ${sub_esphome_name}_device_status
-    name:               ${sub_text_devicename} Device Status
+  - platform:                     status                   
+    id:                           ${sub_esphome_name}_device_status
+    name:                         ${sub_text_devicename} Device Status
   # ------- End Template Components. Add your content below this line --------#
   
   # Define the physical Sonoff Basic button
-  - platform:    gpio
+  - platform:                     gpio
     pin:
-      number:    ${sub_sonoff_button_pin_num}
-      mode:      ${sub_sonoff_button_pin_mode}
-      inverted:  ${sub_sonoff_button_pin_inverted}
-    name:        ${sub_text_devicename} Button
+      number:                     ${sub_sonoff_button_pin_num}
+      mode:                       ${sub_sonoff_button_pin_mode}
+      inverted:                   ${sub_sonoff_button_pin_inverted}
+    name:                         ${sub_text_devicename} Button
     on_press:
-      - switch.toggle: ${sub_esphome_name}_fakebutton
+      - switch.toggle:            ${sub_esphome_name}_fakebutton
 
         
 #*****************************************************************************#
@@ -312,29 +312,29 @@ binary_sensor:
 switch:
   # ------------------------- Begin Template Components ----------------------#
     # Include a switch that can be used to reboot the device
-  - platform:           restart
-    name:               ${sub_text_devicename} Restart
-    id:                 ${sub_esphome_name}_reset_device
-    icon:               mdi:power
+  - platform:                     restart
+    name:                         ${sub_text_devicename} Restart
+    id:                           ${sub_esphome_name}_reset_device
+    icon:                         mdi:power
   # ------- End Template Components. Add your content below this line --------#
   
   # create a fake switch that will work to toggle both the relay and the led
-  - platform:    template
+  - platform:                     template
     #name:        ${sub_text_devicename} Switch
     optimistic:  true
-    id:          ${sub_esphome_name}_fakebutton
+    id:                           ${sub_esphome_name}_fakebutton
     turn_on_action:
-      - switch.turn_on:   ${sub_esphome_name}_relay
-      - light.turn_on:    ${sub_esphome_name}_led
+      - switch.turn_on:           ${sub_esphome_name}_relay
+      - light.turn_on:            ${sub_esphome_name}_led
     turn_off_action:
-      - switch.turn_off:  ${sub_esphome_name}_relay
-      - light.turn_off:   ${sub_esphome_name}_led
+      - switch.turn_off:          ${sub_esphome_name}_relay
+      - light.turn_off:           ${sub_esphome_name}_led
  
   # Physical relay inside the Sonoff Basic
-  - platform:    gpio
-    id:          ${sub_esphome_name}_relay
-    pin:         ${sub_sonoff_relay_pin_num}
-    inverted:    ${sub_sonoff_relay_pin_inverted}
+  - platform:                     gpio
+    id:                           ${sub_esphome_name}_relay
+    pin:                          ${sub_sonoff_relay_pin_num}
+    inverted:                     ${sub_sonoff_relay_pin_inverted}
 
 
 #*****************************************************************************#
@@ -348,16 +348,16 @@ switch:
 sensor:
   # ------------------------- Begin Template Components ----------------------#
     # Include device uptime in the device attributes
-  - platform:           uptime
-    name:               ${sub_text_devicename} Uptime
-    id:                 ${sub_esphome_name}_host_uptime
-    icon:               mdi:clock-outline
+  - platform:                     uptime
+    name:                         ${sub_text_devicename} Uptime
+    id:                           ${sub_esphome_name}_host_uptime
+    icon:                         mdi:clock-outline
   
     # Include wireless signal strength in the device attributes
-  - platform:           wifi_signal              
-    name:               ${sub_text_devicename} WiFi Signal
-    id:                 ${sub_esphome_name}_wifi_signal
-    update_interval:    30s
+  - platform:                     wifi_signal              
+    name:                         ${sub_text_devicename} WiFi Signal
+    id:                           ${sub_esphome_name}_wifi_signal
+    update_interval:              30s
   # ------- End Template Components. Add your content below this line --------#
 
 
@@ -371,11 +371,11 @@ sensor:
 #   and 1).                                                                   #
 #-----------------------------------------------------------------------------#
 output:
-  - platform:    esp8266_pwm
-    id:          ${sub_esphome_name}_basic_green_led
+  - platform:                     esp8266_pwm
+    id:                           ${sub_esphome_name}_basic_green_led
     pin:
-      number:    ${sub_sonoff_pwm_pin_num}
-      inverted:  ${sub_sonoff_pwm_pin_inverted}
+      number:                     ${sub_sonoff_pwm_pin_num}
+      inverted:                   ${sub_sonoff_pwm_pin_inverted}
 
 #*****************************************************************************#
 #                             Light Component                                 #             
@@ -387,7 +387,7 @@ output:
 # This component restores its state on reboot/reset.                          #
 #-----------------------------------------------------------------------------#
 light:
-  - platform:    monochromatic
-    name:        ${sub_text_devicename} Green LED
-    output:      ${sub_esphome_name}_basic_green_led
-    id:          ${sub_esphome_name}_led
+  - platform:                     monochromatic
+    name:                         ${sub_text_devicename} Green LED
+    output:                       ${sub_esphome_name}_basic_green_led
+    id:                           ${sub_esphome_name}_led
