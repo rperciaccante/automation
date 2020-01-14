@@ -388,6 +388,7 @@ output:
 #-----------------------------------------------------------------------------#
 light:
   - platform:                     monochromatic
-    name:                         ${sub_text_devicename} Green LED
+    # `name` is commented to prevent it from being passed to HA as an entity
+    # name:                         ${sub_text_devicename} Green LED
     output:                       ${sub_esphome_name}_basic_green_led
     id:                           ${sub_esphome_name}_led
