@@ -59,8 +59,9 @@
 #      that the switch is working properly.
 #
 # References:
-#    BME280 config: https://esphome.io/cookbook/bme280_environment.html
-#    Formatting SSD1206 - https://esphome.io/cookbook/display_time_temp_oled.html
+#    BME280 config:         https://esphome.io/cookbook/bme280_environment.html
+#    Formatting SSD1206:    https://esphome.io/cookbook/display_time_temp_oled.html
+#    MAC address attribute: https://community.home-assistant.io/t/solved-esphomeyaml-wifi-info-publish/88852/7
 #
 # Changelog:
 #    12/26/2019:
