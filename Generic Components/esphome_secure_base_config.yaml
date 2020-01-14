@@ -1,7 +1,7 @@
 #---------------------------------------------------------
 # Secure Base Configuration for ESPHome (https://esphome.io)
 #---------------------------------------------------------
-# https://github.com/rperciaccante/automation/
+# https://github.com/rperciaccante/automation/tree/master/Generic%20Components
 #
 # Purpose: 
 #   To provide a safe foundational config that can be used for nearly 
