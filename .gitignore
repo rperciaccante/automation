@@ -2,3 +2,4 @@ _unpublished
 secrets.yaml
 *.bin
 _*
+*.dmp
