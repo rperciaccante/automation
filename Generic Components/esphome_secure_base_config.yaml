@@ -118,7 +118,7 @@ esphome:
   # options or conditions that are needed.  This is not always necessary
   # https://esphome.io/components/esphome.html#on-boot
   on_boot:                          
-    priority: -100
+    priority:                     -100
     then:
       script.execute:             on_boot
 
@@ -228,7 +228,7 @@ ota:
 #   single call.                                                              #
 #-----------------------------------------------------------------------------#
 script:
-  - id: on_boot
+  - id:                           on_boot
     then:
       - logger.log:               "System post-boot setup underway..."
       - logger.log:               "System post-boot setup complete..."
