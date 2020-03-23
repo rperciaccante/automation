@@ -227,6 +227,7 @@ script:
     then:
       - logger.log:     "System post-boot setup underway..."
       - logger.log:     "System post-boot setup complete..."
+      - script.execute: clear_alarm
   
   - id: clear_alarm
     then:
@@ -240,21 +241,21 @@ script:
       - logger.log: "Over Voltage Condition Noted"
       - text_sensor.template.publish:
           id: alarm_state
-          state: "VOLTAGE"
+          state: "VOLTAGE HIGH"
           
   - id: power_alarm
     then:
       - logger.log: "Over Power Condition Noted"
       - text_sensor.template.publish:
           id: alarm_state
-          state: "POWER"
+          state: "POWER HIGH"
   
   - id: current_alarm
     then:
       - logger.log: "Over Current Condition Noted"
       - text_sensor.template.publish:
           id: alarm_state
-          state: "CURRENT"
+          state: "CURRENT HIGH"
       
 i2c:
   sda: ${sub_i2c_sda}
@@ -298,6 +299,7 @@ sensor:
       name:             ${sub_text_devicename} Bus Voltage
     shunt_voltage:
       name:             ${sub_text_devicename} Shunt Voltage
+      internal:         true
     max_voltage:        ${sub_ins219_max_voltage}
     max_current:        ${sub_ins219_max_current}
     update_interval:    1s
