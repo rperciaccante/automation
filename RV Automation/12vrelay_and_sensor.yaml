@@ -1,0 +1,395 @@
+#*****************************************************************************#
+#                    ESPHome config for Sensor/Relay                          #
+#-----------------------------------------------------------------------------#
+# https://github.com/rperciaccante/automation/                                #
+#                                                                             #
+#  Comments welcome - rfp@protonmail.com                                      #
+#                                                                             #
+# Purpose:                                                                    #
+#   To provide the ability to control power in an RV (12v) to provide the     #
+#      ability to creat 3-way light configurations using an existing physical #
+#      switch on one end, and this relay on the other.  Since the activation  #
+#      of the remote physical switch will not notify Home Assistant, and on-  #
+#      board current sensor will monitor for power usage and allow HA to know #
+#      the actual state of that light, regardless of the local relay state.   #
+#   This base config includes the following device attributes by default:     #   
+#      - IP Address                                                           #
+#          https://esphome.io/components/text_sensor/wifi_info.html           #
+#      - MAC Address                                                          #
+#          https://community.home-assistant.io/t/solved-esphomeyaml-wifi-info-#
+#             publish/88852/7                                                 #
+#          https://www.arduino.cc/en/Reference/WiFi                           #
+#      - SSID                                                                 #
+#          https://esphome.io/components/text_sensor/wifi_info.html           #
+#      - Wifi signal strength                                                 #
+#          https://esphome.io/components/sensor/wifi_signal.html              #
+#      - ESPHome Version                                                      #
+#          https://esphome.io/components/text_sensor/version.html             #
+#      - Connection Status                                                    #
+#          https://esphome.io/components/binary_sensor/status.html            #
+#      - Device Uptime (in seconds by default)                                #
+#          https://esphome.io/components/sensor/uptime.html                   #
+#      - Reset button to restart the device remotely                          #
+#          https://esphome.io/components/switch/restart.html                  #
+#                                                                             #
+# Expected Behavior:                                                          #
+#    This device will integrate with Home Assistant via the ESPHome API.  It  #
+#       will report the state of a resource based on power consumption, and   #
+#       control power via the physical relay.  Protection against over        #
+#       voltage, power, etc will be 
+#                                                                             #
+#   Components:                                                               #
+#     One Wemos D1 Mini                                                       #  
+#     One standard relay (5v, D1 as trigger)                                  #
+#     One INA219 Currrent Sensor                                              #
+#                                                                             #
+#   References:                                                               #
+#      - https://esphome-configs.io/devices/shelly-1/                         #
+#                                                                             #
+# Changelog:                                                                  #
+#    3/16/2020:                                                               #
+#      - Initial Configuration and documentation                              #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+
+#-----------------------------------------------------------------------------#
+#                         Substitution Component                              #
+#       https://esphome.io/guides/configuration-types.html#substitutions      #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+# The substitution names are "sub_"[component]_[variable] (i.e.               #
+#   sub_esphome_board) to improve readability and make it easier to extend or #
+#   use as a template.  General text substitutions, such as used in names,    #
+#   begin with "sub_text_" and are at the start of the substitutions block.   #
+#                                                                             #
+# NOTE: Sensitive information like passwords should be moved to your          #
+#   secrets.yaml file and should not be left in cleartext in your config!     #
+#   This is done here for demonstration purposes only                         #
+#-----------------------------------------------------------------------------#
+substitutions:
+  # Project Specific Substitutions
+  sub_text_devicename:            "Sensor Relay 1"
+  sub_esphome_name:               sensor_relay1
+  sub_wifi_manual_ip_static_ip:   !secret esp_sensor_relay_1_ip
+  sub_esphome_platform:           ESP8266
+  sub_esphome_board:              d1_mini
+
+  # Network and service related substitutions
+  sub_wifi_ssid1:                 !secret esp_wifi_ssid1
+  sub_wifi_password1:             !secret esp_wifi_pass1
+  sub_wifi_ssid2:                 !secret esp_wifi_ssid2
+  sub_wifi_password2:             !secret esp_wifi_pass2
+  sub_wifi_manual_ip_subnet:      !secret esp_ip_subnet
+  sub_wifi_manual_ip_gateway:     !secret esp_ip_gateway
+  sub_wifi_manual_ip_dns1:        !secret esp_ip_dns
+  # Fast connect is only available when a single SSID is used.  True or False
+  sub_wifi_fast_connect:          "false"                  
+  sub_wifi_domain:                !secret esp_ip_domain
+  sub_wifi_ap_password:           !secret esp_ap_psk
+  sub_web_server_port:            !secret esp_http_server_port
+  sub_web_server_auth_user:       !secret esp_http_user
+  sub_web_server_auth_password:   !secret esp_http_pass
+  sub_api_password:               !secret esp_api_pass
+  sub_ota_password:               !secret esp_ota_pass
+  
+  # PIN and componet specific substitutions
+  sub_i2c_sda:                    "D2"
+  sub_i2c_scl:                    "D1"
+  sub_relay_pin:                  "D7"
+  sub_ins219_max_voltage:         "14.0V"
+  sub_ins219_max_current:         "3.2A"
+  sub_ins219_alarm_voltage:       "13.5V"
+  sub_ins219_alarm_current:       "3.0A"
+
+#*****************************************************************************#
+#                  https://esphome.io/components/esphome.html                 #
+#-----------------------------------------------------------------------------#
+# Here you specify some core information that ESPHome needs to create         #
+#   binary files. Most importantly, this is the section of the configuration  #
+#   where you specify the node name, the platform and board you’re using.     #
+#-----------------------------------------------------------------------------#
+esphome:
+  name:                 ${sub_esphome_name}
+  platform:             ${sub_esphome_platform}
+  board:                ${sub_esphome_board}
+  
+  # After the device is all up and running, run this script to set 
+  # options or conditions that are needed.  This is not always necessary
+  # https://esphome.io/components/esphome.html#on-boot
+  on_boot:                          
+    priority: -100
+    then:
+      script.execute:   on_boot
+
+#*****************************************************************************#
+#                                  WiFi Component                             #
+#                    https://esphome.io/components/wifi.html                  #
+#-----------------------------------------------------------------------------#
+# This core ESPHome component sets up WiFi connections to access points for   #
+#   you. It needs to be in your configuration or otherwise ESPHome will fail  #
+#   the config validation stage.                                              #
+# It’s recommended to provide a static IP for your node, as it can            #
+#   dramatically improve connection times.                                    #
+#-----------------------------------------------------------------------------#
+wifi:
+  networks:
+    - ssid:             ${sub_wifi_ssid1}
+      password:         ${sub_wifi_password1}
+  #  - ssid:             ${sub_wifi_ssid2}
+  #    password:         ${sub_wifi_password2}
+   
+  # ------------- Static IP address assignment ------------- #
+  # To use DHCP comment out the manual_ip block and contents
+  manual_ip:
+   static_ip:           192.168.50.149 #${sub_wifi_manual_ip_static_ip}
+   subnet:              ${sub_wifi_manual_ip_subnet}
+   gateway:             ${sub_wifi_manual_ip_gateway}
+   dns1:                ${sub_wifi_manual_ip_dns1}
+  # If you are using only one SSID, enable Fast Connect
+  fast_connect:         ${sub_wifi_fast_connect}
+  domain:               ${sub_wifi_domain}
+  ap:                                   # Enable fallback hotspot
+    ssid:               ${sub_text_devicename} Hotspot
+    password:           ${sub_wifi_ap_password}
+
+#*****************************************************************************#
+#                            Web Server Component                             #
+#                 https://esphome.io/components/web_server.html               #
+#-----------------------------------------------------------------------------#
+# The web_server component creates a simple web server on the node that       #
+#   can be accessed through any browser and a simple REST API. Please note    #
+#   that enabling this component will take up a lot of memory and can lead    #
+#   to problems, especially on the ESP8266.                                   #
+#-----------------------------------------------------------------------------# 
+web_server: 
+  port:                 ${sub_web_server_port}
+  auth:
+    username:           ${sub_web_server_auth_user}
+    password:           ${sub_web_server_auth_password}
+
+#*****************************************************************************#
+#                            Captive Portal Component                         #
+#                 https://esphome.io/components/captive_portal.html           #
+#-----------------------------------------------------------------------------#
+# The captive portal component in ESPHome is a fallback mechanism for when    #
+#   connecting to the configured WiFi fails. After 1 minute of unsuccessful   #
+#   wifi connection attempts, the ESP will start a WiFi hotspot (with the     #
+#   credentials from your configuration).                                     #
+#-----------------------------------------------------------------------------#
+captive_portal:
+
+#*****************************************************************************#
+#                               API Component                                 #
+#                    https://esphome.io/components/api.html                   #
+#-----------------------------------------------------------------------------#
+# The ESPHome native API is used to communicate with clients directly,        #
+#   with a highly-optimized network protocol. Currently, only the ESPHome     #
+#   tool and Home Assistant use this native API.                              #
+#-----------------------------------------------------------------------------#
+api:
+  password:             ${sub_api_password}
+ 
+#*****************************************************************************#
+#                               Logger Component                              #
+#                    https://esphome.io/components/logger.html                #
+#-----------------------------------------------------------------------------#
+# The logger component automatically logs all log messages through the serial #
+#   port and through MQTT topics. By default, all logs with a severity higher #
+#   than DEBUG will be shown. Decreasing the log level can help with the      #
+#   performance of the application and memory size.                           #
+#-----------------------------------------------------------------------------#
+logger:
+
+#*****************************************************************************#
+#                               OTA Update Component                          #
+#                       https://esphome.io/components/ota.html                #
+#-----------------------------------------------------------------------------#
+# With the OTA (Over The Air) update component you can upload your firmware   #
+#   binaries to your node without having to use an USB cable for uploads.     #
+#   ESPHome natively supports this through its run and upload helper scripts. #
+#-----------------------------------------------------------------------------#
+ota:
+  safe_mode:            ${sub_wifi_fast_connect}
+  password:             ${sub_ota_password}
+
+#*****************************************************************************#
+#                           script.execute Action                             #
+#         https://esphome.io/guides/automations.html#script-execute-action    #
+#-----------------------------------------------------------------------------#
+# This action allows code-reuse. For example if you have multiple triggers    #
+#   that perform the same exact action, you would normally have to copy the   # 
+#   YAML lines for all triggers. With the script component you can define     #
+#   these steps in a central place, and then execute the script with a        #
+#   single call.                                                              #
+#-----------------------------------------------------------------------------#
+script:
+  - id: on_boot
+    then:
+      - logger.log:     "System post-boot setup underway..."
+      - logger.log:     "System post-boot setup complete..."
+  
+  - id: clear_alarm
+    then:
+      - logger.log: "Clearing Alarm State"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "CLEAR"
+  
+  - id: voltage_alarm
+    then:
+      - logger.log: "Over Voltage Condition Noted"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "VOLTAGE"
+          
+  - id: power_alarm
+    then:
+      - logger.log: "Over Power Condition Noted"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "POWER"
+  
+  - id: current_alarm
+    then:
+      - logger.log: "Over Current Condition Noted"
+      - text_sensor.template.publish:
+          id: alarm_state
+          state: "CURRENT"
+      
+i2c:
+  sda: ${sub_i2c_sda}
+  scl: ${sub_i2c_scl}
+
+#*****************************************************************************#
+#                              Sensor Component                               #
+#                    https://esphome.io/components/sensor/                    #
+#-----------------------------------------------------------------------------#
+# ESPHome has support for many different sensors. Each of them is a platform  #
+#   of the sensor domain and each sensor has several base configuration       #
+#   options.                                                                  #
+#-----------------------------------------------------------------------------#
+sensor:
+  # ------------------------- Begin Template Components ----------------------#
+    # Include device uptime in the device attributes
+  - platform:           uptime
+    name:               ${sub_text_devicename} Uptime
+    id:                 ${sub_esphome_name}_host_uptime
+    icon:               mdi:clock-outline
+  
+    # Include wireless signal strength in the device attributes
+  - platform:           wifi_signal              
+    name:               ${sub_text_devicename} WiFi Signal
+    id:                 ${sub_esphome_name}_wifi_sugnal
+    update_interval:    30s
+  # ------- End Template Components. Add your content below this line --------#
+  
+  # Current sensor - INA219 - https://esphome.io/components/sensor/ina219.html
+  - platform:           ina219
+    address:            0x40
+    shunt_resistance:   0.1 ohm
+    current:
+      name:             ${sub_text_devicename} Current
+      #on_value_range:
+      #  - above:        ${sub_ins219_alarm_current}
+      #    then:
+    power:
+      name:             ${sub_text_devicename} Power
+    bus_voltage:
+      name:             ${sub_text_devicename} Bus Voltage
+    shunt_voltage:
+      name:             ${sub_text_devicename} Shunt Voltage
+    max_voltage:        ${sub_ins219_max_voltage}
+    max_current:        ${sub_ins219_max_current}
+    update_interval:    1s
+
+#*****************************************************************************#
+#                                Switch Component                             #
+#                      https://esphome.io/components/switch/                  #
+#-----------------------------------------------------------------------------#
+# The switch domain includes all platforms that should show up like a switch  #
+#   and can only be turned ON or OFF.                                         #
+#-----------------------------------------------------------------------------#
+switch:
+  # ------------------------- Begin Template Components ----------------------#
+    # Include a switch that can be used to reboot the device
+  - platform:           restart
+    name:               ${sub_text_devicename} Restart
+    id:                 ${sub_esphome_name}_reset_device
+    icon:               mdi:power
+  # ------- End Template Components. Add your content below this line --------#
+  
+  - platform:           gpio                     
+    pin:                ${sub_relay_pin}
+    name:               ${sub_text_devicename} Switch
+    id:                 power_relay
+
+      
+#*****************************************************************************#
+#                             Text Sensor Component                           #
+#             https://esphome.io/components/text_sensor/index.html            #
+#-----------------------------------------------------------------------------#
+# Text sensors are a lot like normal sensors. But where the “normal”          #
+#   sensors only represent sensors that output numbers, this component        #
+#   can represent any text.                                                   #
+#-----------------------------------------------------------------------------#
+text_sensor:
+  # ------------------------- Begin Template Components ----------------------#
+    # Include ESPHome version in device attributes
+  - platform:           version                   
+    name:               ${sub_text_devicename} ESPHome Version
+    id:                 ${sub_esphome_name}_esphome_version
+
+    # Include WiFi info in device attributes
+  - platform:           wifi_info
+    ip_address:
+      name:             ${sub_text_devicename} IP Address
+      id:               ${sub_esphome_name}_host_ip
+      icon:             mdi:fingerprint
+    ssid:
+      name:             ${sub_text_devicename} Connected SSID
+      id:               ${sub_esphome_name}_host_ssid
+      icon:             "mdi:router-wireless"
+      
+    # Use a template sensor to get the MAC address of the wireless device
+  - platform:           template                   
+    id:                 ${sub_esphome_name}_host_mac
+    name:               ${sub_text_devicename} MAC Address
+    lambda:             'return {WiFi.macAddress().c_str()};'
+    icon:               mdi:fingerprint
+    update_interval:    1d
+  # ------- End Template Components. Add your content below this line --------#
+  
+    # https://esphome.io/components/sensor/template.html
+  - platform:           template                  
+    name:               ${sub_text_devicename} Alarm State
+    id:                 alarm_state
+    icon:               "mdi:alert-decagram"
+    
+
+#******************************************************************************
+#                           Binary Sensor Component                           #
+#              https://esphome.io/components/binary_sensor/index.html         #
+#-----------------------------------------------------------------------------#
+# With ESPHome you can use different types of binary sensors. They will       #
+#   automatically appear in the Home Assistant front-end and have several     #
+#   configuration options.                                                    #
+#-----------------------------------------------------------------------------#
+binary_sensor:
+  # ------------------------- Begin Template Components ----------------------#
+
+    # Include the node state as a device attribute.  
+  - platform:           status                   
+    id:                 ${sub_esphome_name}_device_status
+    name:               ${sub_text_devicename} Device Status
+  # ------- End Template Components. Add your content below this line --------#                        
+   
+
+#*****************************************************************************#
+#                             Output Component                                #
+#              https://esphome.io/components/output/index.html                #
+#-----------------------------------------------------------------------------#
+# Each platform of the output domain exposes some output to ESPHome. These    #
+#   are grouped into two categories: binary outputs (that can only be ON/OFF) #
+#   and #float outputs (like PWM, can output any rational value between 0     #
+#   and 1).                                                                   #
+#-----------------------------------------------------------------------------#
