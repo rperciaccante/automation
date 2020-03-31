@@ -338,6 +338,6 @@ sensor:
     # Include wireless signal strength in the device attributes
   - platform:                     wifi_signal              
     name:                         ${sub_text_devicename} WiFi Signal
-    id:                           ${sub_esphome_name}_wifi_sugnal
+    id:                           ${sub_esphome_name}_wifi_signal
     update_interval:              30s
   # ------- End Template Components. Add your content below this line --------#
