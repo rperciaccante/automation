@@ -1,8 +1,7 @@
 #*****************************************************************************#
-#                    ESPHome config for Shelly 1                              #
+#          ESPHome config for Shelly 1  used for RV Lighting control          #
 #-----------------------------------------------------------------------------#
-# https://github.com/rperciaccante/automation/tree/master/Generic%20Components#
-#                                                                             #
+# https://github.com/rperciaccante/automation/tree/master/RV%20Automation/LightControl #                                                                             #
 #  Comments welcome - rfp@protonmail.com                                      #
 #                                                                             #
 # Purpose:                                                                    #
@@ -226,11 +225,10 @@ script:
 #-----------------------------------------------------------------------------#
 sensor:
   # ------------------------- Begin Template Components ----------------------#
-    # Include device uptime in the device attributes
-  - platform:           uptime
-    name:               ${sub_text_devicename} Uptime
-    id:                 ${sub_esphome_name}_host_uptime
-    icon:               mdi:clock-outline
+    # Collect uptime info that will be formatted in a Test sensor below
+  - platform:                 uptime
+    id:                       device_uptime
+    internal:                 true
   
     # Include wireless signal strength in the device attributes
   - platform:           wifi_signal              
@@ -293,7 +291,35 @@ text_sensor:
     lambda:             'return {WiFi.macAddress().c_str()};'
     icon:               mdi:fingerprint
     update_interval:    1d
-  # ------- End Template Components. Add your content below this line --------#
+    
+    # Use a template sensor to convert uptime seconds into xD xxH xxM xxS format
+  - platform: template
+    name:                     ${sub_text_devicename} Uptime
+    id:                       ${sub_esphome_name}_host_uptime
+    lambda:                   |-
+                                uint32_t dur = id(device_uptime).state;
+                                int dys = 0;
+                                int hrs = 0;
+                                int mnts = 0;
+                                if (dur > 86399) {
+                                  dys = trunc(dur / 86400);
+                                  dur = dur - (dys * 86400);
+                                }
+                                if (dur > 3599) {
+                                  hrs = trunc(dur / 3600);
+                                  dur = dur - (hrs * 3600);
+                                }
+                                if (dur > 59) {
+                                  mnts = trunc(dur / 60);
+                                  dur = dur - (mnts * 60);
+                                }
+                                char buffer[17];
+                                sprintf(buffer, "%ud %02uh %02um %02us", dys, hrs, mnts, dur);
+                                return {buffer};
+    icon:                     mdi:clock-start
+    update_interval:          15s
+
+# ------- End Template Components. Add your content below this line --------#
                                        
 #******************************************************************************
 #                           Binary Sensor Component                           #
