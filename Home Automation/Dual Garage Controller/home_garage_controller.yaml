@@ -41,6 +41,7 @@
 #   Components:                                                               #
 #     One Wemos D1 Mini                                                       #  
 #     One dual relay board (one relay per garage door)                        #
+#       - https://makeradvisor.com/tools/5v-2-channel-relay-module-optocoupler/  
 #     One BME680 Environment Sensor                                           #
 #     Two reed switches (one per garage door)                                 #
 #                                                                             #
@@ -75,7 +76,7 @@
 substitutions:
   # Project Specific Substitutions
   sub_text_devicename:            "Garage Controller"
-  sub_esphome_name:               garage_controller
+  sub_esphome_name:               garage_ctrlr
   sub_device_location:            "Garage"
   sub_wifi_manual_ip_static_ip:   !secret esp_static_ip
   sub_esphome_platform:           ESP8266
@@ -269,9 +270,8 @@ sensor:
   # ------------------------- Begin Template Components ----------------------#
     # Include device uptime in the device attributes
   - platform:                 uptime
-    name:                     ${sub_text_devicename} Uptime
-    id:                       ${sub_esphome_name}_host_uptime
-    icon:                     mdi:clock-outline
+    id:                       ${sub_esphome_name}_uptime_raw
+    internal:                 true
   
     # Include wireless signal strength in the device attributes
   - platform:                 wifi_signal              
@@ -387,6 +387,32 @@ text_sensor:
     update_interval:          1d
   # ------- End Template Components. Add your content below this line --------#
    
+  - platform: template
+    name:                     ${sub_text_devicename} Uptime
+    id:                       ${sub_esphome_name}_host_uptime
+    lambda:                   |-
+                                uint32_t dur = id(${sub_esphome_name}_uptime_raw).state;
+                                int dys = 0;
+                                int hrs = 0;
+                                int mnts = 0;
+                                if (dur > 86399) {
+                                  dys = trunc(dur / 86400);
+                                  dur = dur - (dys * 86400);
+                                }
+                                if (dur > 3599) {
+                                  hrs = trunc(dur / 3600);
+                                  dur = dur - (hrs * 3600);
+                                }
+                                if (dur > 59) {
+                                  mnts = trunc(dur / 60);
+                                  dur = dur - (mnts * 60);
+                                }
+                                char buffer[17];
+                                sprintf(buffer, "%ud %02uh %02um %02us", dys, hrs, mnts, dur);
+                                return {buffer};
+    icon:                     mdi:clock-start
+    update_interval:          15s
+
 
 #******************************************************************************
 #                           Binary Sensor Component                           #
