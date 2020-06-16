@@ -56,6 +56,8 @@
 #    5/27/2020:                                                               #
 #      - Completed code, completed comments                                   #
 #      - Created Fritzing diagram of wiring, added to Github repo             #
+#    6/16/2020:                                                               #
+#      - Tweaked code to include Cover templates to improve interface use     #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 
@@ -78,7 +80,7 @@ substitutions:
   sub_text_devicename:            "Garage Controller"
   sub_esphome_name:               garage_ctrlr
   sub_device_location:            "Garage"
-  sub_wifi_manual_ip_static_ip:   !secret esp_static_ip
+  sub_wifi_manual_ip_static_ip:   !secret esp_garage_ctrlr_ip
   sub_esphome_platform:           ESP8266
   sub_esphome_board:              d1_mini
 
@@ -88,7 +90,7 @@ substitutions:
   sub_wifi_ssid2:                 !secret esp_wifi_ssid2
   sub_wifi_password2:             !secret esp_wifi_pass2
   sub_wifi_manual_ip_subnet:      !secret esp_ip_subnet
-  sub_wifi_manual_ip_gateway:     !secret esp_ip_gateway
+  sub_wifi_manual_ip_gateway:     !secret esp_iot_gateway
   sub_wifi_manual_ip_dns1:        !secret esp_ip_dns
   # Fast connect is only available when a single SSID is used.  True or False
   sub_wifi_fast_connect:          "false"                  
@@ -103,9 +105,9 @@ substitutions:
   # PIN and componet specific substitutions
   sub_i2c_sda:                    "D2"
   sub_i2c_scl:                    "D1"
-  sub_relay1_pin:                 "D5"
+  sub_relay1_pin:                 "D0"
   sub_relay1_name:                "Near Garage Switch"
-  sub_relay2_pin:                 "D0"
+  sub_relay2_pin:                 "D5"
   sub_relay2_name:                "Far Garage Switch"
   sub_reed1_pin:                  "D6"
   sub_reed1_name:                 "Near Garage Door"
@@ -147,18 +149,18 @@ wifi:
   networks:
     - ssid:                      ${sub_wifi_ssid1}
       password:                  ${sub_wifi_password1}
-    - ssid:                      ${sub_wifi_ssid2}
-      password:                  ${sub_wifi_password2}
+    # - ssid:                      ${sub_wifi_ssid2}
+    #   password:                  ${sub_wifi_password2}
    
   # ------------- Static IP address assignment ------------- #
   # To use DHCP comment out the manual_ip block and contents
-  # manual_ip:
-  #  static_ip:                  ${sub_wifi_manual_ip_static_ip}
-  #  subnet:                     ${sub_wifi_manual_ip_subnet}
-  #  gateway:                    ${sub_wifi_manual_ip_gateway}
-  #  dns1:                       ${sub_wifi_manual_ip_dns1}
+  manual_ip:
+   static_ip:                  ${sub_wifi_manual_ip_static_ip}
+   subnet:                     ${sub_wifi_manual_ip_subnet}
+   gateway:                    ${sub_wifi_manual_ip_gateway}
+   dns1:                       ${sub_wifi_manual_ip_dns1}
   # If you are using only one SSID, enable Fast Connect
-  #fast_connect:                 ${sub_wifi_fast_connect}
+  fast_connect:                 ${sub_wifi_fast_connect}
   domain:                       ${sub_wifi_domain}
   reboot_timeout:               0s
   ap:                   # Enable fallback hotspot
@@ -236,10 +238,24 @@ ota:
 #   single call.                                                              #
 #-----------------------------------------------------------------------------#
 script:
+# ------------------------- Begin Template Components ----------------------#
   - id: on_boot
     then:
       - logger.log:           "System post-boot setup underway..."
       - logger.log:           "System post-boot setup complete..."
+# ------- End Template Components. Add your content below this line --------#
+
+  - id: toggle_relay1
+    then:
+      - switch.turn_on:         power_relay1
+      - delay:                  500ms
+      - switch.turn_off:        power_relay1
+  
+  - id: toggle_relay2
+    then:
+      - switch.turn_on:         power_relay2
+      - delay:                  500ms
+      - switch.turn_off:        power_relay2
 
       
 #-----------------------------------------------------------------------------#
@@ -338,17 +354,13 @@ switch:
     icon:                     "mdi:arrow-up-down-bold-outline"
     name:                     "Near Garage Control"
     turn_on_action:
-    - switch.turn_on:         power_relay1
-    - delay:                  500ms
-    - switch.turn_off:        power_relay1
+      - script.execute:           toggle_relay1
 
   - platform:                 template
     icon:                     "mdi:arrow-up-down-bold-outline"
     name:                     "Far Garage Control"
     turn_on_action:
-    - switch.turn_on:         power_relay2
-    - delay:                  500ms
-    - switch.turn_off:        power_relay2
+      - script.execute:           toggle_relay2
 
       
 #*****************************************************************************#
@@ -437,14 +449,58 @@ binary_sensor:
     pin:
       number:                 ${sub_reed1_pin}
       mode:                   INPUT_PULLUP
-    name:                     ${sub_reed1_name}
+    name:                     ${sub_reed1_name}  Status
+    id:                       door_contact1
     device_class:             garage_door
     
   - platform:                 gpio
     pin:
       number:                 ${sub_reed2_pin}
       mode:                   INPUT_PULLUP
-    name:                     ${sub_reed2_name}
+    name:                     ${sub_reed2_name}  Status
+    id:                       door_contact2
     device_class:             garage_door
 
-   
+
+#******************************************************************************
+#                           Template Cover Component                          #
+#            https://www.home-assistant.io/integrations/cover.template/       #
+#-----------------------------------------------------------------------------#
+# The template platform can create covers that combine integrations and       #
+#   provides the ability to run scripts or invoke services for each of the    #
+#   open, close, stop, position and tilt commands of a cover.                 #
+#-----------------------------------------------------------------------------#
+cover:
+  - platform:                 template              
+    name:                     ${sub_reed1_name}
+    device_class:             garage
+    lambda: |-
+      if (id(door_contact1).state) {
+        return cover::COVER_OPEN;
+      } else {
+        return cover::COVER_CLOSED;
+      }
+    open_action:
+      - script.execute:       toggle_relay1
+    close_action:
+      - script.execute:       toggle_relay1
+    stop_action:
+      - script.execute:       toggle_relay1
+    optimistic: true
+
+  - platform:                 template              
+    name:                     ${sub_reed2_name}
+    device_class:             garage
+    lambda: |-
+      if (id(door_contact2).state) {
+        return cover::COVER_OPEN;
+      } else {
+        return cover::COVER_CLOSED;
+      }
+    open_action:
+      - script.execute:       toggle_relay2
+    close_action:
+      - script.execute:       toggle_relay2
+    stop_action:
+      - script.execute:       toggle_relay2
+    optimistic: true
